@@ -28,7 +28,7 @@ static map<string, IRStruct*> m_IRStruct;///结构体名 到 IRStruct的映射
 
 
 
-#include "SyntaxTree.h"
+#include "SyntaxNode.h"
 
 using namespace llvm;
 
@@ -56,7 +56,7 @@ public:
 	inline Value* GetAllocaInstVar()
 	{
 		if (AllocaInstVar!=NULL)
-			return AllocaInstVar;
+		return AllocaInstVar;
 		else
 			return GlobalValue;
 	}
@@ -80,7 +80,7 @@ public:
 	* @param 传入待分析的m_IRTree
 	* @return void
 	*/
-	void Trslt2IR(CSyntaxTree* m_GlbVarTree,CSyntaxNode *function_tree, CSyntaxTree *IRTree);
+	void Trslt2IR(CSyntaxTree* m_GlbVarTree, CSyntaxNode *function_tree, CSyntaxTree *IRTree);
 
 	/**add by yubin 2015-4-7
 	* 将每个结点转成对应的IR代码
@@ -144,8 +144,11 @@ public:
 	* @return 转换之后的结果
 	*/
 	///2015-4-7 add by wangmeng
-	Value * __Expr2IR(CSyntaxNode* pTree);
+	Value * __Expr2IR(CSyntaxNode* pTree,bool load = true);
 
+	Value * __Array2IR(CSyntaxNode* pTree);
+
+	Value * __StructEle2IR(CSyntaxNode* pTree,bool StructP);
 	/**
 	* 输出语句转成对应的IR代码
 	* @param 传入待分析的语法树
@@ -214,7 +217,7 @@ public:
 	* @param 传入待分析的语法树
 	* @return 转换后的IR代码
 	*/
-	Value* __Cast2IR(Value *value, Type *type);
+	Value* __Cast2IR(Value *value, Type *type, bool sign);
 
 	/**
 	* 函数调用语句转为IR代码
@@ -223,7 +226,7 @@ public:
 	*/
 	///2015-4-14 add by daichunchun
 	Value* IR::__Call2IR(CSyntaxNode *pTree);
-	
+
 	/**
 	* 函数定义语句转为IR代码
 	* @param 传入待分析的语法树
@@ -231,7 +234,7 @@ public:
 	*/
 	///2015-4-27 add by daichunchun
 	void IR::func2IR(CSyntaxNode *pTree);
-	
+
 	/**
 	* 处理全局变量
 	* @param pTrlee(全局变量树)
@@ -254,8 +257,20 @@ public:
 	*/
 	///add by daichunchun 2015-5-12
 	void IR::Global2IR(CSyntaxNode *pTrlee, bool sign);
-		
+
 	bool InstIRSymbol(string name, AllocaInst* InstVar, bool sign);
+
+	Value * IR::__EQ2IR(Value* LHS, Value* RHS);
+
+	Value * IR::__NE2IR(Value* LHS, Value* RHS);
+
+	Value * IR::__GT2IR(Value* LHS, Value* RHS);
+
+	Value * IR::__LT2IR(Value* LHS, Value* RHS);
+
+	Value * IR::__GE2IR(Value* LHS, Value* RHS);
+
+	Value * IR::__LE2IR(Value* LHS, Value* RHS);
 
 private:
 	///
@@ -265,8 +280,9 @@ private:
 	Module* m_module;
 
 	///符号表
-	//map<string, AllocaInst *> m_IRSTable;
 	map<string, IRSymbol *> m_IRSTable;
+	
+	map<string, IRSymbol *> fun_STable;
 
 	map<string, IRSymbol *> mainSTable;
 	
@@ -279,6 +295,8 @@ private:
 	Value *m_StNum;
 
 	
+
+
 
 };
 
