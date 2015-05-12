@@ -39,6 +39,7 @@ public:
 	///构造函数
 	IRSymbol();
 	IRSymbol(AllocaInst* InstVar, bool sign);
+	IRSymbol(Value* InstVar, bool sign);
 	~IRSymbol();
 	inline void SetIsSigned(bool sign)
 	{
@@ -52,15 +53,19 @@ public:
 	{
 		AllocaInstVar = InstVar;
 	}
-	inline AllocaInst* GetAllocaInstVar()
+	inline Value* GetAllocaInstVar()
 	{
-		return AllocaInstVar;
+		if (AllocaInstVar!=NULL)
+			return AllocaInstVar;
+		else
+			return GlobalValue;
 	}
 
 
 private:
 	bool IsSigned;
 	AllocaInst* AllocaInstVar;
+	Value* GlobalValue;
 };
 
 class IR
@@ -75,7 +80,7 @@ public:
 	* @param 传入待分析的m_IRTree
 	* @return void
 	*/
-	void Trslt2IR(CSyntaxTree *IRTree);
+	void Trslt2IR(CSyntaxTree* m_GlbVarTree,CSyntaxNode *function_tree, CSyntaxTree *IRTree);
 
 	/**add by yubin 2015-4-7
 	* 将每个结点转成对应的IR代码
@@ -153,7 +158,7 @@ public:
 	* @param 待处理的变量
 	* @return void
 	*/
-	void __AddOne2IR(AllocaInst * alloc);
+	void __AddOne2IR(Value * alloc);
 
 	/**
 	* 加法操作转成对应的IR代码
@@ -218,16 +223,41 @@ public:
 	*/
 	///2015-4-14 add by daichunchun
 	Value* IR::__Call2IR(CSyntaxNode *pTree);
+	
+	/**
+	* 函数定义语句转为IR代码
+	* @param 传入待分析的语法树
+	* @return 转换后的IR代码
+	*/
+	///2015-4-27 add by daichunchun
+	void IR::func2IR(CSyntaxNode *pTree);
+	
+	/**
+	* 处理全局变量
+	* @param pTrlee(全局变量树)
+	*/
+	///add by daichunchun 2015-5-5
+	void IR::frame2IR(CSyntaxNode *pTrlee);
 
+	/**
+	* 输出语句转成对应的IR代码
+	* @param 传入待分析的语法树
+	* @return void
+	*/
+	//add by daichunchun 2015/5/12,输出符号表的值
+	void IR::__OutType(Constant* putsFunc, map<string, IRSymbol *> tempSTable);
+
+	/**
+	* 处理全局变量
+	* @param pTrlee(全局变量树) sign(是否有符号）
+	)
+	*/
+	///add by daichunchun 2015-5-12
+	void IR::Global2IR(CSyntaxNode *pTrlee, bool sign);
+		
 	bool InstIRSymbol(string name, AllocaInst* InstVar, bool sign);
 
 private:
-<<<<<<< HEAD
-=======
-
-
-
->>>>>>> 9ebb173a31c1cef6348212635bf5307c2530de39
 	///
 	llvm::IRBuilder<> *m_builder;
 
@@ -238,11 +268,17 @@ private:
 	//map<string, AllocaInst *> m_IRSTable;
 	map<string, IRSymbol *> m_IRSTable;
 
+	map<string, IRSymbol *> mainSTable;
+	
+	map<string, IRSymbol *> GlobalSTable;
+
 	///add by syf 2015-04-16
 	map<string, string> m_SVtable;//结构体变量名到结构体名的映射
 
 	///状态数
-	AllocaInst *m_StNum;
+	Value *m_StNum;
+
+	
 
 };
 
