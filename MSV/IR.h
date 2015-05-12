@@ -75,7 +75,7 @@ public:
 	* @param 传入待分析的m_IRTree
 	* @return void
 	*/
-	void Trslt2IR(CSyntaxTree* m_GlbVarTree,CSyntaxNode *function_tree, CSyntaxTree *IRTree);
+	void Trslt2IR(CSyntaxTree* m_GlbVarTree, CSyntaxNode *function_tree, CSyntaxTree *IRTree);
 
 	/**add by yubin 2015-4-7
 	* 将每个结点转成对应的IR代码
@@ -209,51 +209,7 @@ public:
 	* @param 传入待分析的语法树
 	* @return 转换后的IR代码
 	*/
-
-	/**
-	* 等于转成对应的IR代码
-	* @param 待处理的语法树
-	* @return 转之后的结果
-	*/
-	Value * __EQ2IR(Value* LHS, Value* RHS);
-
-	/**
-	* 不等于转成对应的IR代码
-	* @param 待处理的语法树
-	* @return 转之后的结果
-	*/
-	Value * __NE2IR(Value* LHS, Value* RHS);
-
-	/**
-	* 大于转成对应的IR代码
-	* @param 待处理的语法树
-	* @return 转之后的结果
-	*/
-	Value * __GT2IR(Value* LHS, Value* RHS);
-
-	/**
-	* 小于转成对应的IR代码
-	* @param 待处理的语法树
-	* @return 转之后的结果
-	*/
-	Value * __LT2IR(Value* LHS, Value* RHS);
-
-	/**
-	* 大于等于转成对应的IR代码
-	* @param 待处理的语法树
-	* @return 转之后的结果
-	*/
-	Value * __GE2IR(Value* LHS, Value* RHS);
-
-	/**
-	* 小于等于转成对应的IR代码
-	* @param 待处理的语法树
-	* @return 转之后的结果
-	*/
-	Value * __LE2IR(Value* LHS, Value* RHS);
-
-
-	Value* __Cast2IR(Value *value, Type *type, bool sign);
+	Value* __Cast2IR(Value *value, Type *type);
 
 	/**
 	* 函数调用语句转为IR代码
@@ -262,7 +218,7 @@ public:
 	*/
 	///2015-4-14 add by daichunchun
 	Value* IR::__Call2IR(CSyntaxNode *pTree);
-	
+
 	/**
 	* 函数定义语句转为IR代码
 	* @param 传入待分析的语法树
@@ -270,14 +226,16 @@ public:
 	*/
 	///2015-4-27 add by daichunchun
 	void IR::func2IR(CSyntaxNode *pTree);
-	
+
 	/**
 	* 处理全局变量
 	* @param pTrlee(全局变量树)
 	*/
 	///add by daichunchun 2015-5-5
 	void IR::frame2IR(CSyntaxNode *pTrlee);
-		
+
+	void IR::__OutType(Constant* putsFunc, map<string, IRSymbol *> tempSTable);
+
 	bool InstIRSymbol(string name, AllocaInst* InstVar, bool sign);
 
 private:
@@ -288,14 +246,17 @@ private:
 	Module* m_module;
 
 	///符号表
-	//map<string, AllocaInst *> m_IRSTable;
 	map<string, IRSymbol *> m_IRSTable;
+	map<string, IRSymbol *> mainSTable;
+	map<string, IRSymbol *> fun_STable;
 
 	///add by syf 2015-04-16
 	map<string, string> m_SVtable;//结构体变量名到结构体名的映射
 
 	///状态数
 	AllocaInst *m_StNum;
+
+
 
 };
 
