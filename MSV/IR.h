@@ -28,7 +28,7 @@ static map<string, IRStruct*> m_IRStruct;///结构体名 到 IRStruct的映射
 
 
 
-#include "SyntaxTree.h"
+#include "SyntaxNode.h"
 
 using namespace llvm;
 
@@ -139,8 +139,11 @@ public:
 	* @return 转换之后的结果
 	*/
 	///2015-4-7 add by wangmeng
-	Value * __Expr2IR(CSyntaxNode* pTree);
+	Value * __Expr2IR(CSyntaxNode* pTree,bool load = true);
 
+	Value * __Array2IR(CSyntaxNode* pTree);
+
+	Value * __StructEle2IR(CSyntaxNode* pTree,bool StructP);
 	/**
 	* 输出语句转成对应的IR代码
 	* @param 传入待分析的语法树

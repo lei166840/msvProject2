@@ -66,6 +66,7 @@ public:
 	*Get the element's type by its name
 	*@param EleName(the element's name)
 	*return false if it's unsigned ,else return true
+	*if we cannot find it return false
 	*/
 	bool GetIsSigned(string EleName);
 
