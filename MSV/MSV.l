@@ -71,6 +71,8 @@ RCHAR     \'([^\']|{ESCAPECHAR})\'
 
 "and"      {return AND;}
 "or"       {return OR;}
+"AND"      {return BOOL_AND;}
+"OR"       {return BOOL_OR;}
 "skip"     {return SKIP;}
 "fin"      {return FINAL;}
 "empty"    {return EMPTY;}
@@ -109,12 +111,8 @@ RCHAR     \'([^\']|{ESCAPECHAR})\'
 "input"    {return REQUEST;}
 "request"  {return REQUEST;}
 "prefix"   {return PREFIX;}
-
-":"        {return COLON;}
-
 ";"        {return CHOP;}
 "&"        {return ADDRESS;}
-
 "int"      {return INTDECLARATION;}//  added by Jane 2012-05-21
 "string"   {return STRDECLARATION;}//STRVARIABLE  added by Jane 2012-05-21
 "pointer"  {return POINTERDECLARATION;}//POINTER  added by Jane 2012-05-21
