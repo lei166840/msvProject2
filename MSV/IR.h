@@ -56,10 +56,19 @@ public:
 	inline Value* GetAllocaInstVar()
 	{
 		if (AllocaInstVar!=NULL)
-		return AllocaInstVar;
+			return AllocaInstVar;
 		else
 			return GlobalValue;
 	}
+	inline Value* GetLocalVar()
+	{
+		return AllocaInstVar;
+	}
+	inline Value* GetGlobalVar()
+	{
+		return GlobalValue;
+	}
+
 
 
 private:
@@ -161,7 +170,7 @@ public:
 	* @param 待输出的变量
 	* @return void
 	*/
-	void IR::__TypeOutput(Constant* putsFunc,AllocaInst *outPutVar);
+	void IR::__TypeOutput(Constant* putsFunc,Value *outPutVar);
 
 
 	/**
@@ -295,14 +304,6 @@ public:
 	void IR::frame2IR(CSyntaxNode *pTrlee);
 
 	/**
-	* 输出语句转成对应的IR代码
-	* @param 传入待分析的语法树
-	* @return void
-	*/
-	//add by daichunchun 2015/5/12,输出符号表的值
-	void IR::__OutType(Constant* putsFunc, map<string, IRSymbol *> tempSTable);
-
-	/**
 	* 处理全局变量
 	* @param pTrlee(全局变量树) sign(是否有符号）
 	)
@@ -321,12 +322,8 @@ private:
 
 	///符号表
 	map<string, IRSymbol *> m_IRSTable;
-	
-	map<string, IRSymbol *> fun_STable;
 
-	map<string, IRSymbol *> mainSTable;
-	
-	map<string, IRSymbol *> GlobalSTable;
+	map<string, IRSymbol *> m_GlobalSTable;
 
 	///add by syf 2015-04-16
 	map<string, string> m_SVtable;//结构体变量名到结构体名的映射

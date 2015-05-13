@@ -111,7 +111,7 @@ void IR::Trslt2IR(CSyntaxTree* m_GlbVarTree,CSyntaxNode *function_tree, CSyntaxT
 	outs() << "\n\nResult: \n";
 	outs().flush();
 
-	//m_module->dump();
+	m_module->dump();
 
 
 	std::vector<GenericValue> noargs;
@@ -195,7 +195,7 @@ void IR::Global2IR(CSyntaxNode *pTrlee,bool sign)
 	{
 		cout << "Global2IR : variable " << name << "has already defined" << endl;
 		}
-	if (GlobalSTable.insert(map<string, IRSymbol *>::value_type(name, symbol)).second == false)
+	if (m_GlobalSTable.insert(map<string, IRSymbol *>::value_type(name, symbol)).second == false)
 	{
 		cout << "Global2IR : variable " << name << "has already defined" << endl;
 		}
@@ -635,40 +635,6 @@ Value * IR::__Expr2IR(CSyntaxNode* pTree, bool load)
 }
 
 //add by yubin 2015/4/9,调用printf输出变量的值
-/*void IR::__Out2IR(CSyntaxNode *pTree)
-{
-	//先声明printf函数，然后根据不同的变量类型，进行调用
-	std::vector<llvm::Type *> putsArgs;
-	putsArgs.push_back(m_builder->getInt8PtrTy());
-	llvm::ArrayRef<llvm::Type*>  argsRef(putsArgs);
-	llvm::FunctionType *putsType = llvm::FunctionType::get(m_builder->getInt32Ty(), argsRef, true);
-	llvm::Constant *putsFunc = m_module->getOrInsertFunction("printf", putsType);
-
-	//每次输出变量的值之前，先输出是第几个状态,如state 0：
-	//m_builder->CreateCall(putsFunc, m_builder->CreateGlobalStringPtr("State "));
-	//LoadInst *m_StNumVal = m_builder->CreateLoad(m_StNum);
-	//m_builder->CreateCall2(putsFunc, m_builder->CreateGlobalStringPtr("%d"), m_StNumVal);
-	//m_builder->CreateCall(putsFunc, m_builder->CreateGlobalStringPtr(":\n"));
-
-	if (mainSTable.empty())
-	{
-		m_builder->CreateCall(putsFunc, m_builder->CreateGlobalStringPtr("Global:"));
-		__OutType(putsFunc, m_IRSTable);
-	}
-	else
-	{
-		m_builder->CreateCall(putsFunc, m_builder->CreateGlobalStringPtr("Lobal:"));
-		__OutType(putsFunc, m_IRSTable);
-	}
-
-	__OutType(putsFunc, m_IRSTable);
-
-
-	//__AddOne2IR(m_StNum);//将状态数加1
-
-}*/
-
-//add by yubin 2015/4/9,调用printf输出变量的值
 void IR::__Out2IR(CSyntaxNode *pTree)
 {
 	//先声明printf函数，然后根据不同的变量类型，进行调用
@@ -713,20 +679,19 @@ void IR::__Out2IR(CSyntaxNode *pTree)
 			{
 				position = a.find("$$");
 				if (position != 0)
-			{
-				//对于每一个变量，输出形式如下x=1
-				m_builder->CreateCall(putsFunc, m_builder->CreateGlobalStringPtr(*iter));
-				m_builder->CreateCall(putsFunc, m_builder->CreateGlobalStringPtr("="));
-					AllocaInst *outPutVar;
+				{
+					//对于每一个变量，输出形式如下x=1
+					m_builder->CreateCall(putsFunc, m_builder->CreateGlobalStringPtr(*iter));
+					m_builder->CreateCall(putsFunc, m_builder->CreateGlobalStringPtr("="));
+					Value *outPutVar;
 
 					if (globalFlag == 1)
 					{
-						//目前还没确定是用m_IRSTable还是用mainSTable！！！
-						outPutVar = m_IRSTable[*iter]->GetAllocaInstVar();//全局变量，通过变量的名字在m_IRSTable中找到对应的AllocaInst类型指针
+						outPutVar = m_IRSTable[*iter]->GetGlobalVar();//全局变量，通过变量的名字在m_IRSTable中找到对应的AllocaInst类型指针
 					}
 					else
 					{
-						outPutVar = fun_STable[*iter]->GetAllocaInstVar();//局部变量，通过变量的名字在m_IRSTable中找到对应的AllocaInst类型指针
+						outPutVar = m_IRSTable[*iter]->GetLocalVar();//局部变量，通过变量的名字在m_IRSTable中找到对应的AllocaInst类型指针
 					}
 					__TypeOutput(putsFunc,outPutVar);
 					
@@ -744,45 +709,45 @@ void IR::__Out2IR(CSyntaxNode *pTree)
 }
 
 //add by yubin 2015/5/12,对不同的基本类型进行输出
-void IR::__TypeOutput(Constant* putsFunc, AllocaInst *outPutVar)
+void IR::__TypeOutput(Constant* putsFunc, Value* outPutVar)
 {
-	if (outPutVar->getAllocatedType() == IntegerType::get(m_module->getContext(), 32))//如果是int类型的话
-				{
-		LoadInst *a = m_builder->CreateLoad(outPutVar);
-		a->setAlignment(4);
-					Value *intFormat = m_builder->CreateGlobalStringPtr("%d");
-					m_builder->CreateCall2(putsFunc, intFormat, a);
-				}
-				else if (outPutVar->getAllocatedType() == Type::getFloatTy(m_module->getContext()))//如果是float类型的话
-				{
-		LoadInst *a = m_builder->CreateLoad(outPutVar);
-		a->setAlignment(4);
-					//强制类型转换，将float类型转换成double类型，否则输出时会崩溃
-					Value* floatTyToDoubleTy = m_builder->CreateFPExt(a, Type::getDoubleTy(m_module->getContext()));
-					Value *floatFormat = m_builder->CreateGlobalStringPtr("%f");
-					m_builder->CreateCall2(putsFunc, floatFormat, floatTyToDoubleTy);
-				}
-				//字符输出, add by daichunchun 2015/4/21
-				else if (outPutVar->getAllocatedType() == Type::getInt8Ty(m_module->getContext()))//如果是char类型的话
-				{
-		LoadInst *a = m_builder->CreateLoad(outPutVar);
-		a->setAlignment(4);
-					Value *charFormat = m_builder->CreateGlobalStringPtr("%c");
-					m_builder->CreateCall2(putsFunc, charFormat, a);
-				}
-				//指针输出, add by daichunchun 2015/4/22
-	else if (outPutVar->getAllocatedType()->isPointerTy())//指针类型
-				{
-		LoadInst *a = m_builder->CreateLoad(outPutVar);
-		a->setAlignment(4);
-					Value *intFormat = m_builder->CreateGlobalStringPtr("%d");
-					//添加一次强制类型转换，直接输出指针类型为0，为了体现地址故添加强制类型转换（LLVM 3.7）
-					m_builder->CreateCall2(putsFunc, intFormat, m_builder->CreatePtrToInt(a, IntegerType::get(m_module->getContext(),
-						32)));
-				}
-	else if (outPutVar->getAllocatedType()->isArrayTy())//数组类型
+
+	if (outPutVar->getType()->getContainedType(0) == IntegerType::get(m_module->getContext(), 32))//如果是int类型的话
 	{
-		int elementNum = outPutVar->getAllocatedType()->getArrayNumElements();
+		LoadInst *a = m_builder->CreateLoad(outPutVar);
+		a->setAlignment(4);
+		Value *intFormat = m_builder->CreateGlobalStringPtr("%d");
+		m_builder->CreateCall2(putsFunc, intFormat, a);
+	}
+	else if (outPutVar->getType()->getContainedType(0) == Type::getFloatTy(m_module->getContext()))//如果是float类型的话
+	{
+		LoadInst *a = m_builder->CreateLoad(outPutVar);
+		a->setAlignment(4);
+		//强制类型转换，将float类型转换成double类型，否则输出时会崩溃
+		Value* floatTyToDoubleTy = m_builder->CreateFPExt(a, Type::getDoubleTy(m_module->getContext()));
+		Value *floatFormat = m_builder->CreateGlobalStringPtr("%f");
+		m_builder->CreateCall2(putsFunc, floatFormat, floatTyToDoubleTy);
+	}
+	//字符输出, add by daichunchun 2015/4/21
+	else if (outPutVar->getType()->getContainedType(0) == Type::getInt8Ty(m_module->getContext()))//如果是char类型的话
+	{
+		LoadInst *a = m_builder->CreateLoad(outPutVar);
+		a->setAlignment(4);
+		Value *charFormat = m_builder->CreateGlobalStringPtr("%c");
+		m_builder->CreateCall2(putsFunc, charFormat, a);
+	}
+	//指针输出, add by daichunchun 2015/4/22
+	else if (outPutVar->getType()->getContainedType(0)->isPointerTy())//指针类型
+	{
+		LoadInst *a = m_builder->CreateLoad(outPutVar);
+		a->setAlignment(4);
+		Value *intFormat = m_builder->CreateGlobalStringPtr("%d");
+		//添加一次强制类型转换，直接输出指针类型为0，为了体现地址故添加强制类型转换（LLVM 3.7）
+		m_builder->CreateCall2(putsFunc, intFormat, m_builder->CreatePtrToInt(a, IntegerType::get(m_module->getContext(),32)));
+	}
+	else if (outPutVar->getType()->getContainedType(0)->isArrayTy())//数组类型
+	{
+		int elementNum = outPutVar->getType()->getContainedType(0)->getArrayNumElements();
 		vector<Value*> subScript;
 		m_builder->CreateCall(putsFunc, m_builder->CreateGlobalStringPtr("["));
 		for (int i = 0; i < elementNum; i++)
@@ -793,7 +758,7 @@ void IR::__TypeOutput(Constant* putsFunc, AllocaInst *outPutVar)
 
 			//取下标处的值
 			Value *arrayElement = m_builder->CreateInBoundsGEP(outPutVar, subScript);
-			__TypeOutput(putsFunc, (AllocaInst *)arrayElement);
+			__TypeOutput(putsFunc, arrayElement);
 			subScript.clear();
 			if (i != (elementNum-1))
 			{//如果不是最后一个数组元素，输出元素之后，输出“，”，为了和下一个元素分开
@@ -1658,8 +1623,8 @@ void IR::func2IR(CSyntaxNode *pTree)
 		string parametername = ParameterLeader->GetChild0()->GetNName();
 		if (parametername != "$$Ext")
 		{
-		vectype.push_back(temptype);
-		vecname.push_back(parametername);
+			vectype.push_back(temptype);
+			vecname.push_back(parametername);
 		}
 		ParameterLeader = ParameterLeader->GetChild1();
 	}
@@ -1673,9 +1638,9 @@ void IR::func2IR(CSyntaxNode *pTree)
 	//存储全局状态
 	BasicBlock *tempinsertpoint = m_builder->GetInsertBlock();
 
-	mainSTable = m_IRSTable;
+	map<string, IRSymbol *> mainSTable = m_IRSTable;
 
-	map<string, IRSymbol *> fun_STable=GlobalSTable;
+	map<string, IRSymbol *> fun_STable=m_GlobalSTable;
 
 	//AllocaInst *temp_StNum = m_StNum;
 
@@ -1743,4 +1708,4 @@ void IR::func2IR(CSyntaxNode *pTree)
 	mainSTable.clear();
 	m_builder->SetInsertPoint(tempinsertpoint);
 	return;
-	}
+}
