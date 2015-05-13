@@ -144,17 +144,25 @@ public:
 	* @return 转换之后的结果
 	*/
 	///2015-4-7 add by wangmeng
-	Value * __Expr2IR(CSyntaxNode* pTree,bool load = true);
+	Value * __Expr2IR(CSyntaxNode* pTree, bool load = true);
 
 	Value * __Array2IR(CSyntaxNode* pTree);
 
-	Value * __StructEle2IR(CSyntaxNode* pTree,bool StructP);
+	Value * __StructEle2IR(CSyntaxNode* pTree, bool StructP);
 	/**
 	* 输出语句转成对应的IR代码
 	* @param 传入待分析的语法树
 	* @return void
 	*/
 	void __Out2IR(CSyntaxNode *pTree);
+
+	/**
+	* add by yubin 2015/5/12,对不同的基本类型进行输出
+	* @param 待输出的变量
+	* @return void
+	*/
+	void IR::__TypeOutput(Constant* putsFunc,AllocaInst *outPutVar);
+
 
 	/**
 	* 变量自加操作转成对应的IR代码
@@ -217,6 +225,50 @@ public:
 	* @param 传入待分析的语法树
 	* @return 转换后的IR代码
 	*/
+
+	/**
+	* 等于转成对应的IR代码
+	* @param 待处理的语法树
+	* @return 转之后的结果
+	*/
+	Value * __EQ2IR(Value* LHS, Value* RHS);
+
+	/**
+	* 不等于转成对应的IR代码
+	* @param 待处理的语法树
+	* @return 转之后的结果
+	*/
+	Value * __NE2IR(Value* LHS, Value* RHS);
+
+	/**
+	* 大于转成对应的IR代码
+	* @param 待处理的语法树
+	* @return 转之后的结果
+	*/
+	Value * __GT2IR(Value* LHS, Value* RHS);
+
+	/**
+	* 小于转成对应的IR代码
+	* @param 待处理的语法树
+	* @return 转之后的结果
+	*/
+	Value * __LT2IR(Value* LHS, Value* RHS);
+
+	/**
+	* 大于等于转成对应的IR代码
+	* @param 待处理的语法树
+	* @return 转之后的结果
+	*/
+	Value * __GE2IR(Value* LHS, Value* RHS);
+
+	/**
+	* 小于等于转成对应的IR代码
+	* @param 待处理的语法树
+	* @return 转之后的结果
+	*/
+	Value * __LE2IR(Value* LHS, Value* RHS);
+
+
 	Value* __Cast2IR(Value *value, Type *type, bool sign);
 
 	/**
@@ -240,7 +292,16 @@ public:
 	* @param pTrlee(全局变量树)
 	*/
 	///add by daichunchun 2015-5-5
-	void IR::frame2IR(CSyntaxNode *pTrlee);
+	void IR::Global2IR(CSyntaxNode *pTrlee);
+
+
+	/**
+	*处理全局变量初始化
+	* @param pTrlee(全局变量树) sign(是否有符号）
+	)
+	*/
+	///add by daichunchun 2015-5-12
+	void IR::__GlobalInit(CSyntaxNode *pTrlee, bool sign);
 
 	/**
 	* 输出语句转成对应的IR代码
@@ -250,15 +311,9 @@ public:
 	//add by daichunchun 2015/5/12,输出符号表的值
 	void IR::__OutType(Constant* putsFunc, map<string, IRSymbol *> tempSTable);
 
-	/**
-	* 处理全局变量
-	* @param pTrlee(全局变量树) sign(是否有符号）
-	)
-	*/
-	///add by daichunchun 2015-5-12
-	void IR::Global2IR(CSyntaxNode *pTrlee, bool sign);
+	//bool InstIRSymbol(string name, AllocaInst* InstVar, bool sign);
 
-	bool InstIRSymbol(string name, AllocaInst* InstVar, bool sign);
+
 
 private:
 	///
@@ -269,11 +324,7 @@ private:
 
 	///符号表
 	map<string, IRSymbol *> m_IRSTable;
-	
-	map<string, IRSymbol *> fun_STable;
-
-	map<string, IRSymbol *> mainSTable;
-	
+		
 	map<string, IRSymbol *> GlobalSTable;
 
 	///add by syf 2015-04-16
@@ -281,10 +332,6 @@ private:
 
 	///状态数
 	Value *m_StNum;
-
-	
-
-
 
 };
 

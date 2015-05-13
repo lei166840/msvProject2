@@ -28,10 +28,11 @@ IRSymbol::~IRSymbol()
 {
 }
 
+/*
 bool IR::InstIRSymbol(string name, AllocaInst* InstVar, bool sign)
 {
 	return m_IRSTable.insert(make_pair(name, new IRSymbol(InstVar, sign))).second;
-}
+}*/
 
 IR::IR()
 {
@@ -44,6 +45,8 @@ IR::~IR()
 	delete m_module;
 	delete m_builder;
 }
+
+
 void IR::Trslt2IR(CSyntaxTree* m_GlbVarTree,CSyntaxNode *function_tree, CSyntaxTree *IRTree)
 {
 	if (IRTree == NULL)
@@ -65,14 +68,8 @@ void IR::Trslt2IR(CSyntaxTree* m_GlbVarTree,CSyntaxNode *function_tree, CSyntaxT
 
 	m_builder->SetInsertPoint(entrymain);
 
-	//m_StNum = m_builder->CreateAlloca(IntegerType::get(m_module->getContext(), 32), NULL, "$state_num");
-
-	//m_StNum = m_builder->CreateAlloca(IntegerType::get(m_module->getContext(), 32), NULL, "$$state_num");
-	//m_StNum->setAlignment(4);
-
-	//StoreInst *store = m_builder->CreateStore(m_builder->getInt32(0), m_StNum, false);
-	//store->setAlignment(4);
-
+	
+	//修改理由：将状态计数器作为全局变量，以实现函数内访问状态计数器。
 	m_StNum = new GlobalVariable(*m_module, IntegerType::get(m_module->getContext(), 32), false, GlobalValue::ExternalLinkage, ConstantInt::get(m_module->getContext(), APInt(32, 0)), "$$state_num");
 
 	//结构体定义
@@ -96,11 +93,13 @@ void IR::Trslt2IR(CSyntaxTree* m_GlbVarTree,CSyntaxNode *function_tree, CSyntaxT
 		}
 		//m_builder->CreateAlloca(s->GetStructType());
 	}
+	//全局变量定义
+	Global2IR(m_GlbVarTree->GetRoot());
 
-	frame2IR(m_GlbVarTree->GetRoot());
-
+	//函数定义
 	func2IR(function_tree);
 
+	//main函数定义
 	Stmt2IR(IRTree->GetRoot());
 
 	m_builder->CreateRetVoid();
@@ -112,8 +111,7 @@ void IR::Trslt2IR(CSyntaxTree* m_GlbVarTree,CSyntaxNode *function_tree, CSyntaxT
 	outs().flush();
 
 	//m_module->dump();
-
-
+	
 	std::vector<GenericValue> noargs;
 	//EE->runFunction(FooF, noargs);
 	GenericValue gv = EE->runFunction(MainFunc, noargs);
@@ -131,7 +129,7 @@ void IR::Trslt2IR(CSyntaxTree* m_GlbVarTree,CSyntaxNode *function_tree, CSyntaxT
 * @param pTrlee(全局变量树) 
 */
 ///add by daichunchun 2015-5-5
-void IR::frame2IR(CSyntaxNode *pTrlee)
+void IR::Global2IR(CSyntaxNode *pTrlee)
 {
 	if (pTrlee == NULL)
 	{
@@ -141,38 +139,42 @@ void IR::frame2IR(CSyntaxNode *pTrlee)
 	{
 		case DECLARE_STA:
 		{
-			IR::Global2IR(pTrlee, true);
+			__GlobalInit(pTrlee, true);	//带符号全局变量声明
 			break;
 		}
 		case UNSIGN_DECLARATION_STA:
 		{
-			IR::Global2IR(pTrlee, false);
+			__GlobalInit(pTrlee, false); //不带符号全局变量声明
 			break;
 		}
-		case CHOP_STA:
+		case CHOP_STA:	//遍历全局变量树
 		{
-			__Chop2IR(pTrlee);
+			Global2IR(pTrlee->GetChild0());
+			Global2IR(pTrlee->GetChild1());
 			break;
 		}
-		default:
+		default:	//非声明的全局变量树节点
 		{
-			cout << "In function frame2IR,pTrlee have not-declare node" << endl;
+			cout << "In function Global2IR,pTrlee have not-declare node" << endl;
 			return;
 		}
 	}
 }
 
 /**
-* 处理全局变量
+* 处理全局变量初始化
 * @param pTrlee(全局变量树) sign(是否有符号
 )
 */
 ///add by daichunchun 2015-5-12
-void IR::Global2IR(CSyntaxNode *pTrlee,bool sign)
+void IR::__GlobalInit(CSyntaxNode *pTrlee,bool sign)
 {
+	//全局变量的名字
 	string name = pTrlee->GetChild0()->GetChild0()->GetNName();
+	//全局变量的值
 	Value *var=NULL;
 
+	//根据类型进行初始化
 	switch (pTrlee->GetRType())
 	{
 
@@ -187,7 +189,7 @@ void IR::Global2IR(CSyntaxNode *pTrlee,bool sign)
 		cout << "In function Global2IR,pTrlee have not-define type" << endl;
 		return;
 	}
-
+	
 	}
 	
 	IRSymbol *symbol = new IRSymbol(var, sign);
@@ -199,9 +201,7 @@ void IR::Global2IR(CSyntaxNode *pTrlee,bool sign)
 	{
 		cout << "Global2IR : variable " << name << "has already defined" << endl;
 		}
-	
-
-}
+	}
 void IR::Stmt2IR(CSyntaxNode *pTree)
 {
 	if (pTree == NULL)
@@ -216,7 +216,7 @@ void IR::Stmt2IR(CSyntaxNode *pTree)
 	    {
 
 			__Declr2IR(pTree, true);//处理signed类型的声明语句
-	     	break;
+			break;
 	    }
 		case UNSIGN_DECLARATION_STA:
 		{
@@ -256,8 +256,8 @@ void IR::Stmt2IR(CSyntaxNode *pTree)
 			__Call2IR(pTree);
 			break;
 		}
+		}
 	}
-}
 }
 
 
@@ -335,7 +335,7 @@ void IR::__DeclrIdent(Type *type, CSyntaxNode *pTree, int alignment, bool sign)
 
 	if (m_IRSTable.insert(map<string, IRSymbol *>::value_type(name, symbol)).second == false)
 	{
-		cout << "__DeclrIdent : variable " << name << "has already defined" << endl;
+		cout << "__DeclrIdent : variable " << name << " has already defined" << endl;
 	}
 }
 
@@ -465,9 +465,9 @@ void IR::__Ass2IR(CSyntaxNode* pTree)
 		cout << "__Ass2IR() handle left error!" << endl;
 		return;
 	}
-	
+		
 	Type*LType = LeftValue->getType();
-
+	
 	LType = LType->getContainedType(0);
 
 	Value *tmpRtValue = __Expr2IR(pTree->GetChild1());
@@ -505,140 +505,158 @@ Value * IR::__Expr2IR(CSyntaxNode* pTree, bool load)
 	switch (pTree->GetNType())
 	{
 		///整数 例：3
-	case INTEGER_EXP:
-	{
-		return ConstantInt::get(m_module->getContext(), APInt(32, pTree->GetiValue()));
-		break;
-	}
-	//add by chengyu	2015-5-6
-	//负数 
-	case MINUS_EXP:
-	{
-		//int类型的负值	例：-3
-		if (pTree->GetChild0()->GetNType() == INTEGER_EXP)
+		case INTEGER_EXP:
 		{
-			return ConstantInt::get(m_module->getContext(), APInt(32, -(pTree->GetChild0()->GetiValue())));
+			return ConstantInt::get(m_module->getContext(), APInt(32, pTree->GetiValue()));
+			break;
+			}
+		//add by chengyu	2015-5-6
+		//负数 
+		case MINUS_EXP:
+		{
+			//int类型的负值	例：-3
+			if (pTree->GetChild0()->GetNType() == INTEGER_EXP)
+			{
+				return ConstantInt::get(m_module->getContext(), APInt(32, -(pTree->GetChild0()->GetiValue())));
+				break;
+			}
+			//float类型的负值	例：-3.1
+			else if (pTree->GetChild0()->GetNType() == FLOATLITERAL_EXP)
+			{
+				return ConstantFP::get(m_module->getContext(), APFloat(-(pTree->GetChild0()->GetfValue())));
+			}
+			//变量取负值 例:-x
+			/*
+			else if (pTree->GetChild0()->GetNType() == IDENT_EXP)
+			{
+			Value *res = m_builder->CreateLoad(m_IRSTable[pTree->GetChild0()->GetNName()]->GetAllocaInstVar());
+			}*/
+		}
+		///浮点数 例：3.1
+		case FLOATLITERAL_EXP:
+		{
+			return ConstantFP::get(getGlobalContext(), APFloat(pTree->GetfValue()));
+			break;
+			}
+		//字符 例：'c',add by daichunchun 2015/4/21
+		case CHARLITERAL_EXP:
+		{
+			return ConstantInt::get(m_module->getContext(), APInt(8, pTree->GetcValue()));
+			break;
+			}
+		//地址 例：&a ,add by daichunchun 2015/4/22
+		case ADDRESS_EXP:
+		{
+			return m_IRSTable[pTree->GetChild0()->GetNName()]->GetAllocaInstVar();
+			break;
+			}
+
+		//add by shiyifang 2015-05-11
+		case LIST_SYMBOL_STA:
+		{
+			Value *value = __Array2IR(pTree);
+			if (value == NULL)
+				return NULL;
+			if (load)
+				value = m_builder->CreateLoad(value);
+			return value;
+		}
+		
+		//add by shiyifang 2015-05-11
+		case STRUCT_IDENT_EXP:
+		case STRUCT_LIST_EXP:
+		{
+		__StructEle2IR(pTree, false);
+		}
+
+		//add by shiyifang 2015-05-11
+		case STRUCTP_IDENT_EXP:
+		case STRUCTP_LIST_EXP:
+		{
+			__StructEle2IR(pTree, true);
+		}
+
+		//add by shiyifang 2015-05-11
+		case VALUE_EXP:
+		{
 			break;
 		}
-		//float类型的负值	例：-3.1
-		else if (pTree->GetChild0()->GetNType() == FLOATLITERAL_EXP)
+
+		case STR_EXP:
 		{
-			return ConstantFP::get(m_module->getContext(), APFloat(-(pTree->GetChild0()->GetfValue())));
+			return m_builder->CreateGlobalStringPtr(pTree->GetsValue());
 		}
-		//变量取负值 例:-x
-		/*
-		else if (pTree->GetChild0()->GetNType() == IDENT_EXP)
+		///变量 例：x
+		case IDENT_EXP:
 		{
-		Value *res = m_builder->CreateLoad(m_IRSTable[pTree->GetChild0()->GetNName()]->GetAllocaInstVar());
-		}*/
-	}
-	///浮点数 例：3.1
-	case FLOATLITERAL_EXP:
-	{
-		return ConstantFP::get(getGlobalContext(), APFloat(pTree->GetfValue()));
-		break;
-	}
-	//字符 例：'c',add by daichunchun 2015/4/21
-	case CHARLITERAL_EXP:
-	{
-		return ConstantInt::get(m_module->getContext(), APInt(8, pTree->GetcValue()));
-		break;
-	}
-	//地址 例：&a ,add by daichunchun 2015/4/22
-	case ADDRESS_EXP:
-	{
-		return m_IRSTable[pTree->GetChild0()->GetNName()]->GetAllocaInstVar();
-		break;
-	}
-
-	//add by shiyifang 2015-05-11
-	case LIST_SYMBOL_STA:
-	{
-		Value *value = __Array2IR(pTree);
-		if (value == NULL)
-			return NULL;
-		if (load)
-			value = m_builder->CreateLoad(value);
-		return value;
-	}
-
-	//add by shiyifang 2015-05-11
-	case STRUCT_IDENT_EXP:
-	case STRUCT_LIST_EXP:
-	{
-		__StructEle2IR(pTree, false);
-	}
-
-	//add by shiyifang 2015-05-11
-	case STRUCTP_IDENT_EXP:
-	case STRUCTP_LIST_EXP:
-	{
-		__StructEle2IR(pTree, true);
-	}
-
-	//add by shiyifang 2015-05-11
-	case VALUE_EXP:
-	{
-		break;
-	}
-
-	case STR_EXP:
-	{
-		return m_builder->CreateGlobalStringPtr(pTree->GetsValue());
-	}
-	///变量 例：x
-	case IDENT_EXP:
-	{
-		if (load)
+			if (load)
 			return m_builder->CreateLoad(m_IRSTable[pTree->GetNName()]->GetAllocaInstVar());
 
-		return m_IRSTable[pTree->GetNName()]->GetAllocaInstVar();
-	}
-	///加 例：x+y
-	case ADD_EXP:
-	{
-		return __Add2IR(pTree);
-	}
+			return m_IRSTable[pTree->GetNName()]->GetAllocaInstVar();
+		}
+		///加 例：x+y
+		case ADD_EXP:
+		{
+			return __Add2IR(pTree);
+		}
 
-	///减 例：x-y
-	case SUB_EXP:
-	{
-		return __Sub2IR(pTree);
-	}
-	///乘 例：x*y
-	case MUL_EXP:
-	{
-		return __Mul2IR(pTree);
-	}
-	///除 例：x/y
-	case DIV_EXP:
-	{
-		return __Div2IR(pTree);
-	}
+		///减 例：x-y
+		case SUB_EXP:
+		{
+			return __Sub2IR(pTree);
+		}
+		///乘 例：x*y
+		case MUL_EXP:
+		{
+			return __Mul2IR(pTree);
+		}
+		///除 例：x/y
+		case DIV_EXP:
+		{
+			return __Div2IR(pTree);
+		}
 
-	///取余 例：x%y
-	case MOD_EXP:
-	{
-		return __Mod2IR(pTree);
-	}
-	///函数调用表达式
-	case FUNCTION_STA:
-	{
-		return __Call2IR(pTree);
-	}
-	//外部函数调用表达式
-	case EXT_FUNCTION_STA:
-	{
-		return __Call2IR(pTree);
-	}
+		///取余 例：x%y
+		case MOD_EXP:
+		{
+			return __Mod2IR(pTree);
+		}
+		///函数调用表达式
+		case FUNCTION_STA:
+		{
+			return __Call2IR(pTree);
+			}
+		//外部函数调用表达式
+		case EXT_FUNCTION_STA:
+		{
+			return __Call2IR(pTree);
+		}	
 	}
 }
-/**
-* 输出语句转成对应的IR代码
-* @param 传入待分析的语法树
-* @return void
-*/
-//add by yubin 2015/4/9,调用printf输出变量的值，根据mainSTable的情况判断处于函数内部还是函数外部输出
+
+//add by yubin 2015/4/9,调用printf输出变量的值
+void IR::__Out2IR(CSyntaxNode *pTree)
+{
+	//先声明printf函数，然后根据不同的变量类型，进行调用
+	std::vector<llvm::Type *> putsArgs;
+	putsArgs.push_back(m_builder->getInt8PtrTy());
+	llvm::ArrayRef<llvm::Type*>  argsRef(putsArgs);
+	llvm::FunctionType *putsType = llvm::FunctionType::get(m_builder->getInt32Ty(), argsRef, true);
+	llvm::Constant *putsFunc = m_module->getOrInsertFunction("printf", putsType);
+
+	//每次输出变量的值之前，先输出是第几个状态,如state 0：
+	m_builder->CreateCall(putsFunc, m_builder->CreateGlobalStringPtr("State "));
+	LoadInst *m_StNumVal = m_builder->CreateLoad(m_StNum);
+	m_builder->CreateCall2(putsFunc, m_builder->CreateGlobalStringPtr("%d"), m_StNumVal);
+	m_builder->CreateCall(putsFunc, m_builder->CreateGlobalStringPtr(":\n"));
+
+	__OutType(putsFunc, m_IRSTable);
+		
+	__AddOne2IR(m_StNum);//将状态数加1
+
+}
+/*
+//add by yubin 2015/4/9,调用printf输出变量的值
 void IR::__Out2IR(CSyntaxNode *pTree)
 {
 	//先声明printf函数，然后根据不同的变量类型，进行调用
@@ -654,63 +672,185 @@ void IR::__Out2IR(CSyntaxNode *pTree)
 	m_builder->CreateCall2(putsFunc, m_builder->CreateGlobalStringPtr("%d"), m_StNumVal);
 	m_builder->CreateCall(putsFunc, m_builder->CreateGlobalStringPtr(":\n"));
 	
-	if (mainSTable.empty())
-	{
-		m_builder->CreateCall(putsFunc, m_builder->CreateGlobalStringPtr("Global:"));
-		__OutType(putsFunc, m_IRSTable);
-	}
-	else
-	{
-		m_builder->CreateCall(putsFunc, m_builder->CreateGlobalStringPtr("Lobal:"));
-		__OutType(putsFunc, m_IRSTable);
-		}
-	__AddOne2IR(m_StNum);//将状态数加1
-
-}
 	
-/**
-* 输出语句转成对应的IR代码
-* @param 传入待分析的语法树
-* @return void
-*/
-//add by daichunchun 2015/5/12,输出符号表的值
-void IR::__OutType(Constant* putsFunc, map<string, IRSymbol *> tempSTable)
+	if (pTree->GetST().size() != 0)//如果有变量的话，进行如下操作，否则什么也不做
 	{
-	
+		vector<string> outPutSymTbl;//需要输出的变量，用vector存储
+		outPutSymTbl = pTree->GetST();
 
-}
-
-
-void IR::__OutType(Constant* putsFunc, map<string, IRSymbol *> tempSTable)
-{
-	//每次输出变量的值之前，先输出是第几个状态,如state 0：
-
-	if (tempSTable.size() != 0)//如果有变量的话，进行如下操作，否则什么也不做
-	{
-		//vector<string> outPutSymTbl;//需要输出的变量，用vector存储
-		//outPutSymTbl =tempSTable.key_comp();
-
-		//vector<string>::iterator iter;
-
-		map<string, IRSymbol *>::iterator iter;
-		for (iter = tempSTable.begin(); iter != tempSTable.end(); iter++)
+		vector<string>::iterator iter;
+		bool globalFlag = 0;//add by yubin 2015/5/12,增加一个标志位，表示输出的变量是否是全局变量
+		for (iter = outPutSymTbl.begin(); iter != outPutSymTbl.end(); iter++)
 		{
-			string a = iter->first;
+			string a = *iter;
 			int position = a.find("##");//要么是##函数名，要么是##Global
 			if (position == 0)
 			{
 				string outputString(a, 2);
 				m_builder->CreateCall(putsFunc, m_builder->CreateGlobalStringPtr(outputString + ":"));
+				if (a == "##Global")
+				{
+					globalFlag = 1;//表示下面的变量都是全局变量，将标志位置为1
+				}
+				else
+				{
+					globalFlag = 0;//将标志位置为0
+				}
 			}
 			else
 			{
 				position = a.find("$$");
 				if (position != 0)
-				{
-					//对于每一个变量，输出形式如下x=1
-					m_builder->CreateCall(putsFunc, m_builder->CreateGlobalStringPtr(a));
-					m_builder->CreateCall(putsFunc, m_builder->CreateGlobalStringPtr("="));
+			{
+				//对于每一个变量，输出形式如下x=1
+				m_builder->CreateCall(putsFunc, m_builder->CreateGlobalStringPtr(*iter));
+				m_builder->CreateCall(putsFunc, m_builder->CreateGlobalStringPtr("="));
+				AllocaInst *outPutVar;
 
+					if (globalFlag == 1)
+					{
+						//目前还没确定是用m_IRSTable还是用mainSTable！！！
+						outPutVar = m_IRSTable[*iter]->GetAllocaInstVar();//全局变量，通过变量的名字在m_IRSTable中找到对应的AllocaInst类型指针
+					}
+					else
+					{
+						outPutVar = fun_STable[*iter]->GetAllocaInstVar();//局部变量，通过变量的名字在m_IRSTable中找到对应的AllocaInst类型指针
+					}
+					__TypeOutput(putsFunc,outPutVar);
+					
+
+				m_builder->CreateCall(putsFunc, m_builder->CreateGlobalStringPtr("  "));//每个变量输出之后，输出两个空格，以便和下一个变量的输出隔开
+			}
+
+		}
+
+		}
+		m_builder->CreateCall(putsFunc, m_builder->CreateGlobalStringPtr("\n"));//每个状态输出之后，换行
+
+	}
+	__AddOne2IR(m_StNum);//将状态数加1
+}*/
+/*
+//add by yubin 2015/5/12,对不同的基本类型进行输出
+void IR::__TypeOutput(Constant* putsFunc, AllocaInst *outPutVar)
+{
+	if (outPutVar->getAllocatedType() == IntegerType::get(m_module->getContext(), 32))//如果是int类型的话
+				{
+		LoadInst *a = m_builder->CreateLoad(outPutVar);
+		a->setAlignment(4);
+					Value *intFormat = m_builder->CreateGlobalStringPtr("%d");
+					m_builder->CreateCall2(putsFunc, intFormat, a);
+				}
+				else if (outPutVar->getAllocatedType() == Type::getFloatTy(m_module->getContext()))//如果是float类型的话
+				{
+		LoadInst *a = m_builder->CreateLoad(outPutVar);
+		a->setAlignment(4);
+					//强制类型转换，将float类型转换成double类型，否则输出时会崩溃
+					Value* floatTyToDoubleTy = m_builder->CreateFPExt(a, Type::getDoubleTy(m_module->getContext()));
+					Value *floatFormat = m_builder->CreateGlobalStringPtr("%f");
+					m_builder->CreateCall2(putsFunc, floatFormat, floatTyToDoubleTy);
+				}
+				//字符输出, add by daichunchun 2015/4/21
+				else if (outPutVar->getAllocatedType() == Type::getInt8Ty(m_module->getContext()))//如果是char类型的话
+				{
+		LoadInst *a = m_builder->CreateLoad(outPutVar);
+		a->setAlignment(4);
+					Value *charFormat = m_builder->CreateGlobalStringPtr("%c");
+					m_builder->CreateCall2(putsFunc, charFormat, a);
+				}
+				//指针输出, add by daichunchun 2015/4/22
+	else if (outPutVar->getAllocatedType()->isPointerTy())//指针类型
+				{
+		LoadInst *a = m_builder->CreateLoad(outPutVar);
+		a->setAlignment(4);
+					Value *intFormat = m_builder->CreateGlobalStringPtr("%d");
+					//添加一次强制类型转换，直接输出指针类型为0，为了体现地址故添加强制类型转换（LLVM 3.7）
+					m_builder->CreateCall2(putsFunc, intFormat, m_builder->CreatePtrToInt(a, IntegerType::get(m_module->getContext(),
+						32)));
+				}
+	else if (outPutVar->getAllocatedType()->isArrayTy())//数组类型
+	{
+		int elementNum = outPutVar->getAllocatedType()->getArrayNumElements();
+		vector<Value*> subScript;
+		m_builder->CreateCall(putsFunc, m_builder->CreateGlobalStringPtr("["));
+		for (int i = 0; i < elementNum; i++)
+		{
+			subScript.push_back(ConstantInt::get(m_module->getContext(), APInt(32, 0)));
+			//数组下标
+			subScript.push_back(ConstantInt::get(m_module->getContext(), APInt(32, i)));
+
+			//取下标处的值
+			Value *arrayElement = m_builder->CreateInBoundsGEP(outPutVar, subScript);
+			__TypeOutput(putsFunc, (AllocaInst *)arrayElement);
+			subScript.clear();
+			if (i != (elementNum-1))
+			{//如果不是最后一个数组元素，输出元素之后，输出“，”，为了和下一个元素分开
+				m_builder->CreateCall(putsFunc, m_builder->CreateGlobalStringPtr(","));
+			}
+			
+		}
+		m_builder->CreateCall(putsFunc, m_builder->CreateGlobalStringPtr("]"));
+		
+
+	}
+
+			}
+*/
+
+//临时的输出函数，仅仅可以正确输出整数类型
+void IR::__OutType(Constant* putsFunc, map<string, IRSymbol *> tempSTable)
+{
+	if (tempSTable.size() != 0)//如果有变量的话，进行如下操作，否则什么也不做
+	{
+		map<string, IRSymbol *>::iterator iter;
+		for (iter = tempSTable.begin(); iter != tempSTable.end(); iter++)
+		{
+			string a = iter->first;
+			int position = a.find("$$");
+			if (position != 0)
+			{
+				//对于每一个变量，输出形式如下x=1
+				m_builder->CreateCall(putsFunc, m_builder->CreateGlobalStringPtr(a));
+				m_builder->CreateCall(putsFunc, m_builder->CreateGlobalStringPtr("="));
+
+				Value *outPutVar = m_IRSTable[a]->GetAllocaInstVar();//通过变量的名字在m_IRSTable中找到对应的AllocaInst类型指针
+				LoadInst *a = m_builder->CreateLoad(outPutVar);
+				a->setAlignment(4);
+
+				if (outPutVar->getType() == IntegerType::get(m_module->getContext(), 32))//如果是int类型的话
+				{
+					Value *intFormat = m_builder->CreateGlobalStringPtr("%d");
+					m_builder->CreateCall2(putsFunc, intFormat, a);
+				}
+				else if (outPutVar->getType() == Type::getFloatTy(m_module->getContext()))//如果是float类型的话
+				{
+					//强制类型转换，将float类型转换成double类型，否则输出时会崩溃
+					Value* floatTyToDoubleTy = m_builder->CreateFPExt(a, Type::getDoubleTy(m_module->getContext()));
+					Value *floatFormat = m_builder->CreateGlobalStringPtr("%f");
+					m_builder->CreateCall2(putsFunc, floatFormat, floatTyToDoubleTy);
+				}
+				//字符输出, add by daichunchun 2015/4/21
+				else if (outPutVar->getType() == Type::getInt8Ty(m_module->getContext()))//如果是char类型的话
+				{
+					Value *charFormat = m_builder->CreateGlobalStringPtr("%c");
+					m_builder->CreateCall2(putsFunc, charFormat, a);
+				}
+				//指针输出, add by daichunchun 2015/4/22
+				else if (outPutVar->getType()->isPointerTy())
+				{
+					Value *intFormat = m_builder->CreateGlobalStringPtr("%d");
+					//添加一次强制类型转换，直接输出指针类型为0，为了体现地址故添加强制类型转换（LLVM 3.7）
+					m_builder->CreateCall2(putsFunc, intFormat, m_builder->CreatePtrToInt(a, IntegerType::get(m_module->getContext(),
+						32)));
+				}
+				m_builder->CreateCall(putsFunc, m_builder->CreateGlobalStringPtr("  "));//每个变量输出之后，输出两个空格，以便和下一个变量的输出隔开
+			}
+			m_builder->CreateCall(putsFunc, m_builder->CreateGlobalStringPtr("\n"));//每个状态输出之后，换行
+
+		}
+	}
+}
+			
 ///add by shiyifang 2015-05-11
 Value * IR::__Array2IR(CSyntaxNode* pTree)
 {
@@ -842,7 +982,7 @@ Value * IR::__Cond2IR(CSyntaxNode* pTree)
 	case MUL_EXP:    //乘，如if(1*2)
 	case DIV_EXP:    //除，如if(1/2)
 	case MOD_EXP:    //取模，如if(1%2)
-{
+	{
 		return __Expr2IR(pTree, true);
 		break;
 	}
@@ -961,7 +1101,7 @@ Value * IR::__EQ2IR(Value* LHS, Value* RHS)
 		return m_builder->CreateFCmpOEQ(LHS, RHS, "FCmpOEQ");
 	}
 }
-		
+
 //不等于
 Value * IR::__NE2IR(Value* LHS, Value* RHS)
 {
@@ -980,14 +1120,14 @@ Value * IR::__NE2IR(Value* LHS, Value* RHS)
 
 //大于
 Value * IR::__GT2IR(Value* LHS, Value* RHS)
-		{
+{
 	Type* LType = LHS->getType();
 	Type* RType = RHS->getType();
 
 	if (LType->isIntegerTy() && RType->isIntegerTy())
-		{
+	{
 		return m_builder->CreateICmpSGT(LHS, RHS, "ICmpGT");
-		}
+	}
 	else if (LType->isFloatTy() && RType->isFloatTy())
 	{
 		return m_builder->CreateFCmpOGT(LHS, RHS, "FCmpOGT");
@@ -1003,7 +1143,7 @@ Value * IR::__LT2IR(Value* LHS, Value* RHS)
 	if (LType->isIntegerTy() && RType->isIntegerTy())
 	{
 		return m_builder->CreateICmpSLT(LHS, RHS, "ICmpLT");
-		}
+	}
 	else if (LType->isFloatTy() && RType->isFloatTy())
 	{
 		return m_builder->CreateFCmpOLT(LHS, RHS, "FCmpOLT");
@@ -1436,8 +1576,8 @@ Value* IR::__Call2IR(CSyntaxNode *pTree)
 		if (ParameterNode->GetNName()!="")
 		{
 			Value* parameter = m_IRSTable[ParameterNode->GetNName()]->GetAllocaInstVar();
-		LoadInst* parameter_load = m_builder->CreateLoad(parameter);
-		vecvalue.push_back(parameter_load);
+			LoadInst* parameter_load = m_builder->CreateLoad(parameter);
+			vecvalue.push_back(parameter_load);
 		}
 		ParameterLeader = ParameterLeader->GetChild1();
 	}
@@ -1561,13 +1701,14 @@ void IR::func2IR(CSyntaxNode *pTree)
 		string parametername = ParameterLeader->GetChild0()->GetNName();
 		if (parametername != "$$Ext")
 		{
-			vectype.push_back(temptype);
-			vecname.push_back(parametername);
+		vectype.push_back(temptype);
+		vecname.push_back(parametername);
 		}
 		ParameterLeader = ParameterLeader->GetChild1();
 	}
 	//构造函数类型
 	FunctionType* FT = FunctionType::get(rettype, vectype, false);
+
 	//获取函数名字
 	string functionname = pTree->GetNName();
 	//函数定义
@@ -1575,12 +1716,11 @@ void IR::func2IR(CSyntaxNode *pTree)
 
 	//存储全局状态
 	BasicBlock *tempinsertpoint = m_builder->GetInsertBlock();
-	
-	mainSTable = m_IRSTable;
+	map<string, IRSymbol *> mainSTable = m_IRSTable;
 
-	map<string, IRSymbol *> fun_STable=GlobalSTable;
-
-	//AllocaInst *temp_StNum = m_StNum;
+	//修改符号表上下文
+	m_IRSTable.clear();
+	m_IRSTable = GlobalSTable;
 
 	//添加函数体
 	if (pTree->GetChild1() != NULL)
@@ -1588,18 +1728,17 @@ void IR::func2IR(CSyntaxNode *pTree)
 		BasicBlock *entry = BasicBlock::Create(m_module->getContext(), "entry", Func, 0);
 		m_builder->SetInsertPoint(entry);
 
-		//m_StNum = m_builder->CreateAlloca(IntegerType::get(m_module->getContext(), 32), NULL, "$$state_num");
-		//m_StNum->setAlignment(4);
-
 		if (rettype != Type::getVoidTy(m_module->getContext()))
 		{
 			AllocaInst *allocDeclr = m_builder->CreateAlloca(rettype);
 			allocDeclr->setName("RValue.addr");
 			int alignment = rettype->getPrimitiveSizeInBits() / 8;
 			allocDeclr->setAlignment(alignment);
-			IRSymbol *symbol = new IRSymbol(allocDeclr, 1);
 
-			if (fun_STable.insert(map<string, IRSymbol *>::value_type("RValue", symbol)).second == false)
+			//这里存在问题，函数临时变量的符号问题没有处理
+			IRSymbol *symbol = new IRSymbol(allocDeclr, true);
+
+			if (m_IRSTable.insert(map<string, IRSymbol *>::value_type("RValue", symbol)).second == false)
 			{
 				cout << "__DeclrIdent : variable " << "RValue"<< "has already defined" << endl;
 			}
@@ -1622,26 +1761,27 @@ void IR::func2IR(CSyntaxNode *pTree)
 			allocDeclr->setAlignment(alignment);
 			//添加至符号表
 			IRSymbol *symbol = new IRSymbol(allocDeclr,1);
-			if (fun_STable.insert(map<string, IRSymbol *>::value_type(tempname, symbol)).second == false)
+			if (m_IRSTable.insert(map<string, IRSymbol *>::value_type(tempname, symbol)).second == false)
 			{
 				cout << "__DeclrIdent : variable " << tempname << "has already defined" << endl;
-	}
+			}
 			//存储参数
 			StoreInst *store = m_builder->CreateStore(temparg, allocDeclr, false);
-}
-		//修改符号表上下文
+			}
 
-		m_IRSTable = fun_STable;
 		Stmt2IR(pTree->GetChild1());
 	}
 
+	//返回语句构造
 	if (FT->getReturnType() != Type::getVoidTy(m_module->getContext()))
 	{
 		Value *ReturnValue = m_IRSTable["RValue"]->GetAllocaInstVar();
 		LoadInst *LoadValue = m_builder->CreateLoad(ReturnValue);
 		m_builder->CreateRet(LoadValue);
 	}
-	fun_STable.clear();
+	else
+		m_builder->CreateRetVoid();
+
 	m_IRSTable = mainSTable;
 	mainSTable.clear();
 	m_builder->SetInsertPoint(tempinsertpoint);
